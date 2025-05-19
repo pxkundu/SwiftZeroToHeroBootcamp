@@ -1,2 +1,19 @@
-# SwiftZeroToHeroBootcamp
-Welcome to the Swift Zero to Hero Bootcamp, a 4-week intensive program to take you from zero programming experience to building iOS apps with Swift and SwiftUI! This repository contains all resources, code samples, and projects for the bootcamp.
+# Swift Zero to Hero Bootcamp
+
+Welcome to the 4-week Swift Zero to Hero Bootcamp! This repository contains resources, code, and projects to learn Swift and SwiftUI.
+
+## Setup
+1. Clone this repo: `git clone https://github.com/username/SwiftZeroToHeroBootcamp.git`
+2. Install Xcode 16+ from the Mac App Store.
+3. Start with `Week1/README.md` for Day 1 tasks.
+
+## Structure
+- Week1: Swift basics, Counter App
+- Week2: To-Do List App
+- Week3: Weather App
+- Week4: Notes App, portfolio
+- Resources: Guides and assets
+
+## Resources
+- [Hacking with Swift](https://www.hackingwithswift.com)
+- [Apple Developer](https://developer.apple.com/tutorials/swiftui)

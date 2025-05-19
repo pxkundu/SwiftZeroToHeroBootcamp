@@ -1,0 +1,9 @@
+{
+  "apis": [
+    {
+      "name": "OpenWeatherMap",
+      "url": "https://openweathermap.org",
+      "key": "Sign up for a free API key"
+    }
+  ]
+}

@@ -1,0 +1,3 @@
+import SwiftUI
+// Example NavigationLink code (run in Xcode project)
+// NavigationLink("Go", destination: Text("Detail"))

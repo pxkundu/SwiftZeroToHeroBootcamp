@@ -1,0 +1,4 @@
+// Variables and Constants
+var name = "Swift"
+let pi = 3.14
+print("Hello, \(name)!")

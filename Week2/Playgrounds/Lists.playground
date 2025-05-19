@@ -1,0 +1,4 @@
+import SwiftUI
+// Example List code (run in Xcode project)
+let items = ["Task 1", "Task 2"]
+// List(items, id: \.self) { item in Text(item) }
