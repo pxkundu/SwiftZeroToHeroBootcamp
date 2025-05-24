@@ -1,0 +1,167 @@
+// Day2.playground
+// Swift Zero to Hero Bootcamp - Week 1, Day 2
+// Topics: Control flow (if, switch, for, while), functions
+// Created for absolute beginners on May 20, 2025
+
+// This playground builds on Day 1 (variables, data types).
+// Learn to make decisions (conditionals), repeat tasks (loops), and reuse code (functions).
+// Run each section with the "Play" button or Cmd+Shift+Return.
+// Results appear in the right pane or console (View > Debug Area > Show Debug Area).
+
+// MARK: - 1. Review: Day 1 Basics
+// Quick review of variables and constants
+var name = "Alice" // Replace with your name
+let age = 25
+print("Hi, \(name), age \(age)!") // Prints: Hi, Alice, age 25!
+
+// MARK: - 2. Conditional Statements: if, else
+// Use if to make decisions based on conditions (true/false).
+let score = 85
+if score >= 90 {
+    print("Excellent!")
+} else if score >= 70 {
+    print("Good job!")
+} else {
+    print("Try again!")
+}
+// Prints: Good job!
+
+// Logical operators: && (and), || (or), ! (not)
+let isStudent = true
+if age < 25 && isStudent {
+    print("Eligible for student discount")
+}
+// Prints: Eligible for student discount
+
+// MARK: - 3. Conditional Statements: switch
+// Switch handles multiple cases efficiently.
+let day = "Monday"
+switch day {
+case "Monday":
+    print("Start of the week")
+case "Friday":
+    print("Weekend soon!")
+default:
+    print("Just another day")
+}
+// Prints: Start of the week
+
+// MARK: - 4. For Loops
+// Repeat code over a range or sequence.
+for i in 1...5 {
+    print("Number: \(i)")
+}
+// Prints: Number: 1, Number: 2, ..., Number: 5
+
+// Example: Print even numbers
+for number in 2...10 {
+    if number % 2 == 0 {
+        print("Even: \(number)")
+    }
+}
+// Prints: Even: 2, Even: 4, ..., Even: 10
+
+// MARK: - 5. While Loops
+// Repeat while a condition is true.
+var count = 0
+while count < 3 {
+    print("Count: \(count)")
+    count += 1
+}
+// Prints: Count: 0, Count: 1, Count: 2
+
+// Example: Countdown
+var timer = 5
+while timer > 0 {
+    print("Countdown: \(timer)")
+    timer -= 1
+}
+// Prints: Countdown: 5, Countdown: 4, ..., Countdown: 1
+
+// MARK: - 6. Functions
+// Functions are reusable code blocks.
+// Syntax: func name(parameter: Type) -> ReturnType { code }
+func sayHello(to person: String) {
+    print("Hello, \(person)!")
+}
+sayHello(to: "Bob") // Prints: Hello, Bob!
+
+// Function with return value
+func square(number: Int) -> Int {
+    return number * number
+}
+let result = square(number: 4)
+print("Square of 4 is \(result)") // Prints: Square of 4 is 16
+
+// Multiple parameters
+func add(a: Int, b: Int) -> Int {
+    return a + b
+}
+let sum = add(a: 5, b: 3)
+print("Sum: \(sum)") // Prints: Sum: 8
+
+// MARK: - 7. Practice Exercises
+// Complete these to practice. Uncomment or add code, then run.
+
+// Exercise 1: Conditional Check
+// Check temperature and print "Hot" (>80), "Comfortable" (60–80), or "Cold" (<60).
+// let temperature = 75
+// if temperature > 80 {
+//     print("Hot")
+// } else if temperature >= 60 {
+//     print("Comfortable")
+// } else {
+//     print("Cold")
+// }
+
+// Exercise 2: Switch Statement
+// Use switch on a weather variable (sunny, rainy, cloudy).
+// let weather = "sunny"
+// switch weather {
+// case "sunny":
+//     print("Wear sunglasses!")
+// case "rainy":
+//     print("Bring an umbrella")
+// case "cloudy":
+//     print("Might rain soon")
+// default:
+//     print("Unknown weather")
+// }
+
+// Exercise 3: For Loop
+// Print multiples of 5 from 5 to 50.
+// for i in 5...50 {
+//     if i % 5 == 0 {
+//         print("Multiple: \(i)")
+//     }
+// }
+
+// Exercise 4: While Loop
+// Subtract 20 from balance (start at 100) until 0 or negative.
+// var balance = 100
+// while balance > 0 {
+//     print("Balance: \(balance)")
+//     balance -= 20
+// }
+
+// Exercise 5: Function
+// Write isEven(number: Int) -> Bool to check if a number is even.
+// func isEven(number: Int) -> Bool {
+//     return number % 2 == 0
+// }
+// print(isEven(number: 6)) // true
+// print(isEven(number: 7)) // false
+
+// Exercise 6: Challenge
+// Write calculateTotal(price: Double, quantity: Int) -> Double.
+// func calculateTotal(price: Double, quantity: Int) -> Double {
+//     return price * Double(quantity)
+// }
+// let total = calculateTotal(price: 9.99, quantity: 3)
+// print("Total: $\(total)") // 29.97
+
+// MARK: - 8. Next Steps
+// - Experiment: Change values (e.g., score to 95) and rerun.
+// - Debug: Try an error (e.g., infinite while loop) and fix it.
+// - Share: Save and post a screenshot on X with #SwiftUI.
+// - Tomorrow: Learn arrays, dictionaries, and optionals!

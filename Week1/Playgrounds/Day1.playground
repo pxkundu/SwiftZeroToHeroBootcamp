@@ -1,26 +1,26 @@
 // Day1.playground
 // Swift Zero to Hero Bootcamp - Week 1, Day 1
-// Topics: Swift basics (variables, constants, data types), Xcode playgrounds
+// Topics: Swift basics (variables, constants, data types, arithmetic, comments, type inference)
 // Created for absolute beginners on May 18, 2025
 
-// Welcome to your first Swift code! This playground introduces variables, constants, and data types.
+// Welcome to your first Swift code! This playground introduces core Swift concepts.
 // Run each section by clicking the "Play" button (triangle) next to the line.
 // Results appear in the right pane or console (View > Debug Area > Show Debug Area).
 
 // MARK: - 1. Introduction to Swift
-// Swift is Apple's programming language for iOS apps (iPhone, iPad).
-// Let's start with a simple print statement to see output.
+// Swift is Apple's language for iOS apps (iPhone, iPad).
+// This print statement shows output in the console.
 print("Hello, Swift! I'm starting my iOS journey!") // Prints to console
 
 // MARK: - 2. Variables (var)
 // Variables store data that can change.
 // Syntax: var name = value
-var score = 10 // An integer (whole number)
-print("Initial score: \(score)") // String interpolation: embeds score in text
-score = 15 // Change the value
+var score = 10 // Stores a number (Int)
+print("Initial score: \(score)") // String interpolation: embeds score
+score = 15 // Update the value
 print("Updated score: \(score)") // Prints: Updated score: 15
 
-var greeting = "Hello, Xcode!" // A string (text)
+var greeting = "Hello, Xcode!" // Stores text (String)
 print(greeting) // Prints: Hello, Xcode!
 greeting = "Hello, iOS!" // Change the string
 print(greeting) // Prints: Hello, iOS!
@@ -28,72 +28,107 @@ print(greeting) // Prints: Hello, iOS!
 // MARK: - 3. Constants (let)
 // Constants store data that cannot change.
 // Syntax: let name = value
-let pi = 3.14 // A double (decimal number)
+let pi = 3.14 // A decimal number (Double)
 print("Pi is: \(pi)") // Prints: Pi is: 3.14
 // pi = 3.14159 // Error: Cannot change a constant
 
 let isLearning = true // A boolean (true/false)
 print("Am I learning? \(isLearning)") // Prints: Am I learning? true
 
-// MARK: - 4. Data Types
-// Swift uses types to define what kind of data a variable/constant holds.
-// Common types: Int (whole numbers), Double (decimals), String (text), Bool (true/false).
+// MARK: - 4. Data Types and Type Inference
+// Swift uses types: Int (whole numbers), Double (decimals), String (text), Bool (true/false).
+// Type inference: Swift guesses the type from the value (e.g., 42 is Int).
+// Explicit types (e.g., var x: Int) are optional for clarity.
 
-// Explicit types (optional, for clarity)
+// Inferred types
+let count = 100 // Swift infers Int
+var rating = 4.5 // Swift infers Double
+let message = "Swift is fun" // Swift infers String
+print("Count: \(count), Rating: \(rating), Message: \(message)")
+
+// Explicit types
 var age: Int = 25
 let name: String = "Alice" // Replace with your name
 var height: Double = 5.8 // Replace with your height (feet)
 let isStudent: Bool = true
+print("Hi, I'm \(name), \(age) years old, \(height) feet tall, student: \(isStudent)")
 
-// Print all together using string interpolation
-print("Hi, I'm \(name), \(age) years old, \(height) feet tall, and a student: \(isStudent)")
-// Example output: Hi, I'm Alice, 25 years old, 5.8 feet tall, and a student: true
+// Check type: Option-click 'count' in Xcode to see it's Int
+let distance = 10.5 // Inferred as Double
+var isActive = true // Inferred as Bool
+print("Distance: \(distance), Active: \(isActive)")
 
-// Implicit types (Swift infers the type)
+// MARK: - 5. Basic Arithmetic Operations
+// Use +, -, *, /, % (modulo) with numbers (Int, Double).
+// Store results or print directly.
+/* Calculate rectangle dimensions
+   for a simple app */
+var length = 5
+var width = 3
+let area = length * width // 15
+let perimeter = 2 * (length + width) // 16
+print("Rectangle: Area = \(area), Perimeter = \(perimeter)")
+
+// Real-world example: Shopping
+let price: Double = 19.99
+let taxRate = 0.08
+let tax = price * taxRate // 1.5992
+let total = price + tax // 21.5892
+print("Total with tax: $\(total)")
+
+// MARK: - 6. Comments and Code Organization
+// Comments explain code (ignored by Swift).
+// Single-line: // Comment
+// Multi-line: /* Comment */
+// Use // MARK: - for sections (shows in Xcode jump bar).
+
+// Example: Organized code
+// MARK: - Weather Data
+// Store weather info for an app
 var city = "New York"
-let population = 8_400_000 // Underscore for readability
-var temperature = 68.0
-let isSunny = true
-print("Welcome to \(city)! Population: \(population), Temp: \(temperature)°F, Sunny: \(isSunny)")
-// Output: Welcome to New York! Population: 8400000, Temp: 68.0°F, Sunny: true
+let population: Int = 8_400_000
+var temperature: Double = 68.0
+let isSunny: Bool = true
+print("Welcome to \(city)! Pop: \(population), Temp: \(temperature)°F, Sunny: \(isSunny)")
 
-// MARK: - 5. Practice Exercises
-// Try these exercises to reinforce what you learned.
-// Uncomment (remove //) or add code, then run to see results.
+// MARK: - 7. Practice Exercises
+// Complete these to practice. Uncomment (remove //) or add code, then run.
 
 // Exercise 1: Personal Info
-// Create variables for your city, zip code, and temperature, then print a message.
+// Create variables for city, zip code, temperature; print a message.
 var myCity = "YourCity" // Replace with your city
 let myZipCode = 12345 // Replace with a zip code
 var myTemperature: Double = 70.0 // Replace with a temperature
 print("I live in \(myCity), zip \(myZipCode), where it’s \(myTemperature)°F.")
-// Your output: I live in YourCity, zip 12345, where it’s 70.0°F.
 
 // Exercise 2: Constants
-// Create constants for birth year and favorite color, then print them.
+// Create constants for birth year and favorite color; print them.
 // let birthYear = 1995 // Replace with your birth year
 // let favoriteColor = "Blue" // Replace with your color
 // print("Born in \(birthYear), my favorite color is \(favoriteColor).")
 
-// Exercise 3: Data Types
-// Create one variable and one constant for each type (Int, Double, String, Bool).
-// Print all in one statement.
-// var myInt = 42
-// let myDouble = 3.14
-// var myString = "Swift"
-// let myBool = false
-// print("Int: \(myInt), Double: \(myDouble), String: \(myString), Bool: \(myBool)")
+// Exercise 3: Arithmetic
+// Calculate total hours worked (hours/day * days).
+// var hoursPerDay = 8
+// let daysWorked = 5
+// let totalHours = hoursPerDay * daysWorked
+// print("Weekly hours: \(totalHours)")
 
-// Exercise 4: Challenge
-// Create a variable for steps (starting at 5000), change to 7500, and print.
-// Make it a constant and observe the error.
-// var steps = 5000
-// steps = 7500
-// print("Today’s steps: \(steps)")
-// Now try: let steps = 5000; steps = 7500; // Error!
+// Exercise 4: Type Inference
+// Create variables with inferred types; print them.
+// let speed = 60 // Inferred as Int
+// var weight = 150.5 // Inferred as Double
+// print("Speed: \(speed), Weight: \(weight)")
 
-// MARK: - 6. Next Steps
+// Exercise 5: Challenge
+// Calculate sale price (price - discount) and print.
+// var originalPrice = 50.0
+// let discount = 10.0
+// let salePrice = originalPrice - discount
+// print("Sale price: $\(salePrice)")
+
+// MARK: - 8. Next Steps
 // - Experiment: Change values (e.g., name to "Bob") and rerun.
-// - Debug: Try an error (e.g., let x: Int = "10") and read the error message.
-// - Share: Save this playground and post a screenshot on X with #SwiftUI.
+// - Debug: Try an error (e.g., let x: Int = "10") and read the message.
+// - Share: Save and post a screenshot on X with #SwiftUI.
 // - Tomorrow: Learn control flow (if, for) and functions!
