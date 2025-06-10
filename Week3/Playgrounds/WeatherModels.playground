@@ -1,0 +1,316 @@
+import SwiftUI
+import PlaygroundSupport
+
+// MARK: - Weather Models
+struct WeatherData: Codable {
+    let weather: [WeatherCondition]
+    let main: MainWeather
+    let wind: Wind
+    let clouds: Clouds
+    let sys: System
+    let name: String
+    let visibility: Int
+    let dt: Int
+    
+    struct WeatherCondition: Codable, Identifiable {
+        let id: Int
+        let main: String
+        let description: String
+        let icon: String
+        
+        var iconURL: URL? {
+            URL(string: "https://openweathermap.org/img/wn/\(icon)@2x.png")
+        }
+    }
+    
+    struct MainWeather: Codable {
+        let temp: Double
+        let feels_like: Double
+        let temp_min: Double
+        let temp_max: Double
+        let pressure: Int
+        let humidity: Int
+        
+        var temperature: String {
+            String(format: "%.1f°C", temp)
+        }
+        
+        var feelsLike: String {
+            String(format: "%.1f°C", feels_like)
+        }
+    }
+    
+    struct Wind: Codable {
+        let speed: Double
+        let deg: Int
+        
+        var direction: String {
+            let directions = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"]
+            let index = Int((Double(deg) + 22.5).truncatingRemainder(dividingBy: 360) / 45.0)
+            return directions[index]
+        }
+    }
+    
+    struct Clouds: Codable {
+        let all: Int
+    }
+    
+    struct System: Codable {
+        let country: String
+        let sunrise: Int
+        let sunset: Int
+        
+        var sunriseTime: Date {
+            Date(timeIntervalSince1970: TimeInterval(sunrise))
+        }
+        
+        var sunsetTime: Date {
+            Date(timeIntervalSince1970: TimeInterval(sunset))
+        }
+    }
+}
+
+// MARK: - Forecast Models
+struct ForecastData: Codable {
+    let list: [ForecastItem]
+    let city: City
+    
+    struct ForecastItem: Codable, Identifiable {
+        let dt: Int
+        let main: WeatherData.MainWeather
+        let weather: [WeatherData.WeatherCondition]
+        let clouds: WeatherData.Clouds
+        let wind: WeatherData.Wind
+        let visibility: Int
+        let pop: Double
+        let dt_txt: String
+        
+        var id: Int { dt }
+        
+        var date: Date {
+            Date(timeIntervalSince1970: TimeInterval(dt))
+        }
+    }
+    
+    struct City: Codable {
+        let id: Int
+        let name: String
+        let country: String
+        let sunrise: Int
+        let sunset: Int
+    }
+}
+
+// MARK: - Weather View Model
+@MainActor
+class WeatherViewModel: ObservableObject {
+    @Published var currentWeather: WeatherData?
+    @Published var forecast: ForecastData?
+    @Published var error: Error?
+    @Published var isLoading = false
+    
+    private let apiKey = "YOUR_API_KEY" // Replace with your OpenWeatherMap API key
+    
+    func fetchWeather(for city: String) async {
+        isLoading = true
+        error = nil
+        
+        do {
+            let weatherURL = makeWeatherURL(for: city)
+            let forecastURL = makeForecastURL(for: city)
+            
+            async let weatherData: WeatherData = fetchData(from: weatherURL)
+            async let forecastData: ForecastData = fetchData(from: forecastURL)
+            
+            let (weather, forecast) = try await (weatherData, forecastData)
+            
+            self.currentWeather = weather
+            self.forecast = forecast
+        } catch {
+            self.error = error
+        }
+        
+        isLoading = false
+    }
+    
+    private func makeWeatherURL(for city: String) -> URL {
+        var components = URLComponents(string: "https://api.openweathermap.org/data/2.5/weather")!
+        components.queryItems = [
+            URLQueryItem(name: "q", value: city),
+            URLQueryItem(name: "appid", value: apiKey),
+            URLQueryItem(name: "units", value: "metric")
+        ]
+        return components.url!
+    }
+    
+    private func makeForecastURL(for city: String) -> URL {
+        var components = URLComponents(string: "https://api.openweathermap.org/data/2.5/forecast")!
+        components.queryItems = [
+            URLQueryItem(name: "q", value: city),
+            URLQueryItem(name: "appid", value: apiKey),
+            URLQueryItem(name: "units", value: "metric")
+        ]
+        return components.url!
+    }
+    
+    private func fetchData<T: Decodable>(from url: URL) async throws -> T {
+        let (data, response) = try await URLSession.shared.data(from: url)
+        
+        guard let httpResponse = response as? HTTPURLResponse,
+              (200...299).contains(httpResponse.statusCode) else {
+            throw URLError(.badServerResponse)
+        }
+        
+        return try JSONDecoder().decode(T.self, from: data)
+    }
+}
+
+// MARK: - Weather Detail View
+struct WeatherDetailView: View {
+    let title: String
+    let value: String
+    
+    var body: some View {
+        VStack {
+            Text(title)
+                .font(.caption)
+                .foregroundColor(.secondary)
+            Text(value)
+                .font(.title3)
+                .bold()
+        }
+    }
+}
+
+// MARK: - Weather View
+struct WeatherView: View {
+    @StateObject private var viewModel = WeatherViewModel()
+    @State private var searchText = ""
+    
+    var body: some View {
+        NavigationView {
+            Group {
+                if viewModel.isLoading {
+                    ProgressView("Loading weather data...")
+                } else if let error = viewModel.error {
+                    VStack {
+                        Text("Error")
+                            .font(.title)
+                            .foregroundColor(.red)
+                        Text(error.localizedDescription)
+                            .foregroundColor(.secondary)
+                    }
+                } else if let weather = viewModel.currentWeather {
+                    ScrollView {
+                        VStack(spacing: 20) {
+                            // Current Weather
+                            VStack {
+                                Text("\(weather.name), \(weather.sys.country)")
+                                    .font(.title)
+                                    .bold()
+                                
+                                if let iconURL = weather.weather.first?.iconURL {
+                                    AsyncImage(url: iconURL) { image in
+                                        image
+                                            .resizable()
+                                            .scaledToFit()
+                                    } placeholder: {
+                                        ProgressView()
+                                    }
+                                    .frame(width: 100, height: 100)
+                                }
+                                
+                                Text(weather.main.temperature)
+                                    .font(.system(size: 70))
+                                    .bold()
+                                
+                                Text(weather.weather.first?.description.capitalized ?? "")
+                                    .font(.title2)
+                            }
+                            .padding()
+                            
+                            // Weather Details
+                            LazyVGrid(columns: [
+                                GridItem(.flexible()),
+                                GridItem(.flexible())
+                            ], spacing: 20) {
+                                WeatherDetailView(
+                                    title: "Feels Like",
+                                    value: weather.main.feelsLike
+                                )
+                                
+                                WeatherDetailView(
+                                    title: "Humidity",
+                                    value: "\(weather.main.humidity)%"
+                                )
+                                
+                                WeatherDetailView(
+                                    title: "Wind",
+                                    value: "\(Int(round(weather.wind.speed))) m/s \(weather.wind.direction)"
+                                )
+                                
+                                WeatherDetailView(
+                                    title: "Pressure",
+                                    value: "\(weather.main.pressure) hPa"
+                                )
+                            }
+                            .padding()
+                            
+                            // Forecast
+                            if let forecast = viewModel.forecast {
+                                VStack(alignment: .leading) {
+                                    Text("5-Day Forecast")
+                                        .font(.title2)
+                                        .bold()
+                                        .padding(.horizontal)
+                                    
+                                    ScrollView(.horizontal, showsIndicators: false) {
+                                        HStack(spacing: 20) {
+                                            ForEach(forecast.list) { item in
+                                                VStack {
+                                                    Text(item.date, style: .date)
+                                                        .font(.caption)
+                                                    
+                                                    if let iconURL = item.weather.first?.iconURL {
+                                                        AsyncImage(url: iconURL) { image in
+                                                            image
+                                                                .resizable()
+                                                                .scaledToFit()
+                                                        } placeholder: {
+                                                            ProgressView()
+                                                        }
+                                                        .frame(width: 50, height: 50)
+                                                    }
+                                                    
+                                                    Text(item.main.temperature)
+                                                        .font(.headline)
+                                                }
+                                                .padding()
+                                                .background(Color.secondary.opacity(0.1))
+                                                .cornerRadius(10)
+                                            }
+                                        }
+                                        .padding()
+                                    }
+                                }
+                            }
+                        }
+                    }
+                } else {
+                    Text("Enter a city name to see the weather")
+                        .foregroundColor(.secondary)
+                }
+            }
+            .navigationTitle("Weather")
+            .searchable(text: $searchText, prompt: "Search city")
+            .onSubmit(of: .search) {
+                Task {
+                    await viewModel.fetchWeather(for: searchText)
+                }
+            }
+        }
+    }
+}
+
+// MARK: - Preview
+PlaygroundPage.current.setLiveView(WeatherView()) 

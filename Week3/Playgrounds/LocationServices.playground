@@ -1,0 +1,234 @@
+import SwiftUI
+import PlaygroundSupport
+import CoreLocation
+
+// MARK: - Location Manager
+class LocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
+    private let manager = CLLocationManager()
+    
+    @Published var location: CLLocation?
+    @Published var error: Error?
+    @Published var authorizationStatus: CLAuthorizationStatus = .notDetermined
+    
+    override init() {
+        super.init()
+        manager.delegate = self
+        manager.desiredAccuracy = kCLLocationAccuracyBest
+        manager.distanceFilter = 10 // Update location when user moves 10 meters
+    }
+    
+    func requestLocationPermission() {
+        manager.requestWhenInUseAuthorization()
+    }
+    
+    func startUpdatingLocation() {
+        manager.startUpdatingLocation()
+    }
+    
+    func stopUpdatingLocation() {
+        manager.stopUpdatingLocation()
+    }
+    
+    // MARK: - CLLocationManagerDelegate
+    
+    func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
+        authorizationStatus = manager.authorizationStatus
+        
+        switch manager.authorizationStatus {
+        case .authorizedWhenInUse, .authorizedAlways:
+            startUpdatingLocation()
+        case .denied, .restricted:
+            error = LocationError.locationDenied
+        case .notDetermined:
+            break
+        @unknown default:
+            break
+        }
+    }
+    
+    func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
+        location = locations.last
+    }
+    
+    func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
+        self.error = error
+    }
+}
+
+// MARK: - Location Error
+enum LocationError: LocalizedError {
+    case locationDenied
+    case locationUnknown
+    
+    var errorDescription: String? {
+        switch self {
+        case .locationDenied:
+            return "Location access is denied. Please enable it in Settings."
+        case .locationUnknown:
+            return "Unable to determine location."
+        }
+    }
+}
+
+// MARK: - Geocoder
+class Geocoder {
+    static let shared = Geocoder()
+    private let geocoder = CLGeocoder()
+    
+    private init() {}
+    
+    func geocode(address: String) async throws -> [CLPlacemark] {
+        try await geocoder.geocodeAddressString(address)
+    }
+    
+    func reverseGeocode(location: CLLocation) async throws -> [CLPlacemark] {
+        try await geocoder.reverseGeocodeLocation(location)
+    }
+}
+
+// MARK: - Location View Model
+@MainActor
+class LocationViewModel: ObservableObject {
+    @Published var location: CLLocation?
+    @Published var placemark: CLPlacemark?
+    @Published var error: Error?
+    @Published var isLoading = false
+    
+    private let locationManager = LocationManager()
+    private let geocoder = Geocoder.shared
+    
+    init() {
+        locationManager.requestLocationPermission()
+        
+        // Observe location updates
+        Task {
+            for await _ in NotificationCenter.default.notifications(named: .init("LocationDidUpdate")) {
+                if let location = locationManager.location {
+                    self.location = location
+                    await reverseGeocode(location: location)
+                }
+            }
+        }
+    }
+    
+    func geocode(address: String) async {
+        isLoading = true
+        error = nil
+        
+        do {
+            let placemarks = try await geocoder.geocode(address: address)
+            placemark = placemarks.first
+        } catch {
+            self.error = error
+        }
+        
+        isLoading = false
+    }
+    
+    private func reverseGeocode(location: CLLocation) async {
+        do {
+            let placemarks = try await geocoder.reverseGeocode(location: location)
+            placemark = placemarks.first
+        } catch {
+            self.error = error
+        }
+    }
+}
+
+// MARK: - Location View
+struct LocationView: View {
+    @StateObject private var viewModel = LocationViewModel()
+    @State private var searchText = ""
+    
+    var body: some View {
+        NavigationView {
+            VStack {
+                if viewModel.isLoading {
+                    ProgressView("Loading location data...")
+                } else if let error = viewModel.error {
+                    VStack {
+                        Text("Error")
+                            .font(.title)
+                            .foregroundColor(.red)
+                        Text(error.localizedDescription)
+                            .foregroundColor(.secondary)
+                    }
+                } else if let placemark = viewModel.placemark {
+                    List {
+                        Section("Location Details") {
+                            if let name = placemark.name {
+                                LocationRow(title: "Name", value: name)
+                            }
+                            
+                            if let thoroughfare = placemark.thoroughfare {
+                                LocationRow(title: "Street", value: thoroughfare)
+                            }
+                            
+                            if let locality = placemark.locality {
+                                LocationRow(title: "City", value: locality)
+                            }
+                            
+                            if let administrativeArea = placemark.administrativeArea {
+                                LocationRow(title: "State", value: administrativeArea)
+                            }
+                            
+                            if let country = placemark.country {
+                                LocationRow(title: "Country", value: country)
+                            }
+                            
+                            if let postalCode = placemark.postalCode {
+                                LocationRow(title: "Postal Code", value: postalCode)
+                            }
+                        }
+                        
+                        if let location = viewModel.location {
+                            Section("Coordinates") {
+                                LocationRow(
+                                    title: "Latitude",
+                                    value: String(format: "%.6f", location.coordinate.latitude)
+                                )
+                                LocationRow(
+                                    title: "Longitude",
+                                    value: String(format: "%.6f", location.coordinate.longitude)
+                                )
+                                LocationRow(
+                                    title: "Altitude",
+                                    value: String(format: "%.1f m", location.altitude)
+                                )
+                            }
+                        }
+                    }
+                } else {
+                    Text("Search for a location or use your current location")
+                        .foregroundColor(.secondary)
+                }
+            }
+            .navigationTitle("Location")
+            .searchable(text: $searchText, prompt: "Search location")
+            .onSubmit(of: .search) {
+                Task {
+                    await viewModel.geocode(address: searchText)
+                }
+            }
+        }
+    }
+}
+
+// MARK: - Location Row
+struct LocationRow: View {
+    let title: String
+    let value: String
+    
+    var body: some View {
+        HStack {
+            Text(title)
+                .foregroundColor(.secondary)
+            Spacer()
+            Text(value)
+                .bold()
+        }
+    }
+}
+
+// MARK: - Preview
+PlaygroundPage.current.setLiveView(LocationView()) 

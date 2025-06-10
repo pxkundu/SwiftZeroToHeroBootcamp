@@ -1,3 +1,176 @@
-import Foundation
-// Example URLSession code (run in Xcode project)
-// let url = URL(string: "https://api.example.com")!
+import SwiftUI
+import PlaygroundSupport
+
+// MARK: - Network Error
+enum NetworkError: Error {
+    case invalidURL
+    case invalidResponse
+    case invalidData
+    case serverError(Int)
+    case decodingError(Error)
+}
+
+// MARK: - Network Client
+class NetworkClient {
+    static let shared = NetworkClient()
+    private let session: URLSession
+    
+    private init() {
+        let config = URLSessionConfiguration.default
+        config.timeoutIntervalForRequest = 30
+        config.requestCachePolicy = .returnCacheDataElseLoad
+        self.session = URLSession(configuration: config)
+    }
+    
+    // MARK: - Basic GET Request
+    func fetchData(from urlString: String) async throws -> Data {
+        guard let url = URL(string: urlString) else {
+            throw NetworkError.invalidURL
+        }
+        
+        let (data, response) = try await session.data(from: url)
+        
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw NetworkError.invalidResponse
+        }
+        
+        guard (200...299).contains(httpResponse.statusCode) else {
+            throw NetworkError.serverError(httpResponse.statusCode)
+        }
+        
+        return data
+    }
+    
+    // MARK: - Generic GET Request
+    func fetch<T: Decodable>(_ type: T.Type, from urlString: String) async throws -> T {
+        let data = try await fetchData(from: urlString)
+        
+        do {
+            return try JSONDecoder().decode(T.self, from: data)
+        } catch {
+            throw NetworkError.decodingError(error)
+        }
+    }
+    
+    // MARK: - POST Request
+    func post<T: Encodable, U: Decodable>(_ data: T, to urlString: String) async throws -> U {
+        guard let url = URL(string: urlString) else {
+            throw NetworkError.invalidURL
+        }
+        
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        
+        let encoder = JSONEncoder()
+        request.httpBody = try encoder.encode(data)
+        
+        let (responseData, response) = try await session.data(for: request)
+        
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw NetworkError.invalidResponse
+        }
+        
+        guard (200...299).contains(httpResponse.statusCode) else {
+            throw NetworkError.serverError(httpResponse.statusCode)
+        }
+        
+        do {
+            return try JSONDecoder().decode(U.self, from: responseData)
+        } catch {
+            throw NetworkError.decodingError(error)
+        }
+    }
+}
+
+// MARK: - Example Models
+struct Post: Codable, Identifiable {
+    let id: Int
+    let title: String
+    let body: String
+    let userId: Int
+}
+
+struct User: Codable, Identifiable {
+    let id: Int
+    let name: String
+    let email: String
+}
+
+// MARK: - Network Demo View
+struct NetworkDemoView: View {
+    @State private var posts: [Post] = []
+    @State private var error: String?
+    @State private var isLoading = false
+    
+    var body: some View {
+        NavigationView {
+            Group {
+                if isLoading {
+                    ProgressView("Loading...")
+                } else if let error = error {
+                    VStack {
+                        Text("Error")
+                            .font(.title)
+                            .foregroundColor(.red)
+                        Text(error)
+                            .foregroundColor(.secondary)
+                    }
+                } else {
+                    List(posts) { post in
+                        VStack(alignment: .leading) {
+                            Text(post.title)
+                                .font(.headline)
+                            Text(post.body)
+                                .font(.subheadline)
+                                .foregroundColor(.secondary)
+                        }
+                    }
+                }
+            }
+            .navigationTitle("Network Demo")
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("Fetch") {
+                        fetchPosts()
+                    }
+                }
+            }
+        }
+    }
+    
+    private func fetchPosts() {
+        isLoading = true
+        error = nil
+        
+        Task {
+            do {
+                // Using JSONPlaceholder API for demo
+                let url = "https://jsonplaceholder.typicode.com/posts"
+                posts = try await NetworkClient.shared.fetch([Post].self, from: url)
+            } catch {
+                self.error = error.localizedDescription
+            }
+            isLoading = false
+        }
+    }
+}
+
+// MARK: - URL Components Demo
+struct URLComponentsDemo {
+    static func buildURL() -> URL? {
+        var components = URLComponents()
+        components.scheme = "https"
+        components.host = "api.example.com"
+        components.path = "/users"
+        components.queryItems = [
+            URLQueryItem(name: "page", value: "1"),
+            URLQueryItem(name: "limit", value: "10"),
+            URLQueryItem(name: "sort", value: "name")
+        ]
+        return components.url
+    }
+}
+
+// MARK: - Preview
+PlaygroundPage.current.setLiveView(NetworkDemoView())

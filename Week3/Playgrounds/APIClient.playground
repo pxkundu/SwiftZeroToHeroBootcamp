@@ -1,0 +1,277 @@
+import SwiftUI
+import PlaygroundSupport
+
+// MARK: - API Client Protocol
+protocol APIClient {
+    func fetch<T: Decodable>(_ type: T.Type, from endpoint: APIEndpoint) async throws -> T
+    func post<T: Encodable, U: Decodable>(_ data: T, to endpoint: APIEndpoint) async throws -> U
+}
+
+// MARK: - API Endpoint
+enum APIEndpoint {
+    case users
+    case posts
+    case comments
+    case custom(String)
+    
+    var path: String {
+        switch self {
+        case .users: return "/users"
+        case .posts: return "/posts"
+        case .comments: return "/comments"
+        case .custom(let path): return path
+        }
+    }
+}
+
+// MARK: - API Configuration
+struct APIConfiguration {
+    let baseURL: String
+    let apiKey: String?
+    let timeoutInterval: TimeInterval
+    let cachePolicy: URLRequest.CachePolicy
+    
+    static let `default` = APIConfiguration(
+        baseURL: "https://api.example.com",
+        apiKey: nil,
+        timeoutInterval: 30,
+        cachePolicy: .returnCacheDataElseLoad
+    )
+}
+
+// MARK: - API Error
+enum APIError: LocalizedError {
+    case invalidURL
+    case invalidResponse
+    case decodingError(Error)
+    case serverError(Int)
+    case unauthorized
+    case networkError(Error)
+    
+    var errorDescription: String? {
+        switch self {
+        case .invalidURL:
+            return "Invalid URL"
+        case .invalidResponse:
+            return "Invalid response from server"
+        case .decodingError(let error):
+            return "Failed to decode response: \(error.localizedDescription)"
+        case .serverError(let code):
+            return "Server error with status code: \(code)"
+        case .unauthorized:
+            return "Unauthorized access"
+        case .networkError(let error):
+            return "Network error: \(error.localizedDescription)"
+        }
+    }
+}
+
+// MARK: - Default API Client
+class DefaultAPIClient: APIClient {
+    private let configuration: APIConfiguration
+    private let session: URLSession
+    
+    init(configuration: APIConfiguration = .default) {
+        self.configuration = configuration
+        
+        let config = URLSessionConfiguration.default
+        config.timeoutIntervalForRequest = configuration.timeoutInterval
+        config.requestCachePolicy = configuration.cachePolicy
+        self.session = URLSession(configuration: config)
+    }
+    
+    func fetch<T: Decodable>(_ type: T.Type, from endpoint: APIEndpoint) async throws -> T {
+        let url = try makeURL(for: endpoint)
+        let request = try makeRequest(for: url)
+        
+        do {
+            let (data, response) = try await session.data(for: request)
+            try validateResponse(response)
+            return try decode(data)
+        } catch let error as APIError {
+            throw error
+        } catch {
+            throw APIError.networkError(error)
+        }
+    }
+    
+    func post<T: Encodable, U: Decodable>(_ data: T, to endpoint: APIEndpoint) async throws -> U {
+        let url = try makeURL(for: endpoint)
+        var request = try makeRequest(for: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        
+        do {
+            let encoder = JSONEncoder()
+            request.httpBody = try encoder.encode(data)
+            
+            let (responseData, response) = try await session.data(for: request)
+            try validateResponse(response)
+            return try decode(responseData)
+        } catch let error as APIError {
+            throw error
+        } catch {
+            throw APIError.networkError(error)
+        }
+    }
+    
+    private func makeURL(for endpoint: APIEndpoint) throws -> URL {
+        var components = URLComponents(string: configuration.baseURL)
+        components?.path = endpoint.path
+        
+        guard let url = components?.url else {
+            throw APIError.invalidURL
+        }
+        
+        return url
+    }
+    
+    private func makeRequest(for url: URL) throws -> URLRequest {
+        var request = URLRequest(url: url)
+        
+        if let apiKey = configuration.apiKey {
+            request.setValue(apiKey, forHTTPHeaderField: "X-API-Key")
+        }
+        
+        return request
+    }
+    
+    private func validateResponse(_ response: URLResponse) throws {
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw APIError.invalidResponse
+        }
+        
+        switch httpResponse.statusCode {
+        case 200...299:
+            return
+        case 401:
+            throw APIError.unauthorized
+        case 500...599:
+            throw APIError.serverError(httpResponse.statusCode)
+        default:
+            throw APIError.invalidResponse
+        }
+    }
+    
+    private func decode<T: Decodable>(_ data: Data) throws -> T {
+        do {
+            return try JSONDecoder().decode(T.self, from: data)
+        } catch {
+            throw APIError.decodingError(error)
+        }
+    }
+}
+
+// MARK: - Example Usage
+struct User: Codable, Identifiable {
+    let id: Int
+    let name: String
+    let email: String
+}
+
+struct Post: Codable, Identifiable {
+    let id: Int
+    let title: String
+    let body: String
+    let userId: Int
+}
+
+// MARK: - API Demo View
+struct APIDemoView: View {
+    @State private var users: [User] = []
+    @State private var posts: [Post] = []
+    @State private var error: APIError?
+    @State private var isLoading = false
+    
+    private let client = DefaultAPIClient(configuration: APIConfiguration(
+        baseURL: "https://jsonplaceholder.typicode.com",
+        apiKey: nil,
+        timeoutInterval: 30,
+        cachePolicy: .returnCacheDataElseLoad
+    ))
+    
+    var body: some View {
+        NavigationView {
+            List {
+                Section("Users") {
+                    ForEach(users) { user in
+                        VStack(alignment: .leading) {
+                            Text(user.name)
+                                .font(.headline)
+                            Text(user.email)
+                                .font(.subheadline)
+                                .foregroundColor(.secondary)
+                        }
+                    }
+                }
+                
+                Section("Posts") {
+                    ForEach(posts) { post in
+                        VStack(alignment: .leading) {
+                            Text(post.title)
+                                .font(.headline)
+                            Text(post.body)
+                                .font(.subheadline)
+                                .foregroundColor(.secondary)
+                        }
+                    }
+                }
+            }
+            .navigationTitle("API Demo")
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("Fetch Data") {
+                        fetchData()
+                    }
+                }
+            }
+            .overlay {
+                if isLoading {
+                    ProgressView("Loading...")
+                }
+            }
+            .alert("Error", isPresented: .constant(error != nil)) {
+                Button("OK") {
+                    error = nil
+                }
+            } message: {
+                if let error = error {
+                    Text(error.localizedDescription)
+                }
+            }
+        }
+    }
+    
+    private func fetchData() {
+        isLoading = true
+        error = nil
+        
+        Task {
+            do {
+                async let fetchedUsers: [User] = client.fetch([User].self, from: .users)
+                async let fetchedPosts: [Post] = client.fetch([Post].self, from: .posts)
+                
+                let (users, posts) = try await (fetchedUsers, fetchedPosts)
+                
+                await MainActor.run {
+                    self.users = users
+                    self.posts = posts
+                    self.isLoading = false
+                }
+            } catch let error as APIError {
+                await MainActor.run {
+                    self.error = error
+                    self.isLoading = false
+                }
+            } catch {
+                await MainActor.run {
+                    self.error = .networkError(error)
+                    self.isLoading = false
+                }
+            }
+        }
+    }
+}
+
+// MARK: - Preview
+PlaygroundPage.current.setLiveView(APIDemoView()) 

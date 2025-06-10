@@ -1,0 +1,175 @@
+import SwiftUI
+import PlaygroundSupport
+
+// MARK: - Async Operations Demo
+actor AsyncCounter {
+    private var count = 0
+    
+    func increment() {
+        count += 1
+    }
+    
+    func decrement() {
+        count -= 1
+    }
+    
+    func getCount() -> Int {
+        return count
+    }
+}
+
+// MARK: - Image Loader
+actor ImageLoader {
+    private var cache: [URL: UIImage] = [:]
+    
+    func loadImage(from url: URL) async throws -> UIImage {
+        if let cachedImage = cache[url] {
+            return cachedImage
+        }
+        
+        let (data, _) = try await URLSession.shared.data(from: url)
+        guard let image = UIImage(data: data) else {
+            throw URLError(.cannotDecodeContentData)
+        }
+        
+        cache[url] = image
+        return image
+    }
+}
+
+// MARK: - Task Manager
+class TaskManager: ObservableObject {
+    @Published var tasks: [String: Task<Void, Never>] = [:]
+    
+    func startTask(id: String, operation: @escaping () async -> Void) {
+        let task = Task {
+            await operation()
+        }
+        tasks[id] = task
+    }
+    
+    func cancelTask(id: String) {
+        tasks[id]?.cancel()
+        tasks.removeValue(forKey: id)
+    }
+    
+    func cancelAllTasks() {
+        tasks.values.forEach { $0.cancel() }
+        tasks.removeAll()
+    }
+}
+
+// MARK: - Async Demo View
+struct AsyncDemoView: View {
+    @StateObject private var taskManager = TaskManager()
+    @State private var counter = AsyncCounter()
+    @State private var count = 0
+    @State private var image: UIImage?
+    @State private var isLoading = false
+    @State private var error: Error?
+    
+    var body: some View {
+        NavigationView {
+            List {
+                // Counter Section
+                Section("Async Counter") {
+                    HStack {
+                        Text("Count: \(count)")
+                            .font(.headline)
+                        Spacer()
+                        Button("Increment") {
+                            Task {
+                                await counter.increment()
+                                count = await counter.getCount()
+                            }
+                        }
+                        Button("Decrement") {
+                            Task {
+                                await counter.decrement()
+                                count = await counter.getCount()
+                            }
+                        }
+                    }
+                }
+                
+                // Image Loading Section
+                Section("Image Loading") {
+                    if let image = image {
+                        Image(uiImage: image)
+                            .resizable()
+                            .scaledToFit()
+                            .frame(height: 200)
+                    } else if isLoading {
+                        ProgressView("Loading image...")
+                    } else if let error = error {
+                        Text("Error: \(error.localizedDescription)")
+                            .foregroundColor(.red)
+                    }
+                    
+                    Button("Load Random Image") {
+                        loadRandomImage()
+                    }
+                }
+                
+                // Task Management Section
+                Section("Task Management") {
+                    Button("Start Long Task") {
+                        startLongTask()
+                    }
+                    
+                    Button("Cancel All Tasks") {
+                        taskManager.cancelAllTasks()
+                    }
+                }
+            }
+            .navigationTitle("Async Operations")
+        }
+    }
+    
+    private func loadRandomImage() {
+        isLoading = true
+        error = nil
+        image = nil
+        
+        Task {
+            do {
+                let imageURL = URL(string: "https://picsum.photos/200/300")!
+                let loader = ImageLoader()
+                image = try await loader.loadImage(from: imageURL)
+            } catch {
+                self.error = error
+            }
+            isLoading = false
+        }
+    }
+    
+    private func startLongTask() {
+        let taskId = UUID().uuidString
+        
+        taskManager.startTask(id: taskId) {
+            for i in 1...10 {
+                if Task.isCancelled { break }
+                try? await Task.sleep(nanoseconds: 1_000_000_000) // 1 second
+                print("Task \(taskId) - Step \(i)")
+            }
+        }
+    }
+}
+
+// MARK: - Async Sequence Demo
+struct AsyncSequenceDemo {
+    static func countdown(from start: Int) -> AsyncStream<Int> {
+        AsyncStream { continuation in
+            Task {
+                for i in (0...start).reversed() {
+                    try? await Task.sleep(nanoseconds: 1_000_000_000)
+                    continuation.yield(i)
+                }
+                continuation.finish()
+            }
+        }
+    }
+}
+
+// MARK: - Preview
+PlaygroundPage.current.setLiveView(AsyncDemoView()) 

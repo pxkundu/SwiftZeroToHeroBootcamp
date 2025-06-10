@@ -1,0 +1,265 @@
+import SwiftUI
+import PlaygroundSupport
+
+// MARK: - Custom Errors
+enum AppError: LocalizedError {
+    case networkError(String)
+    case dataError(String)
+    case validationError(String)
+    case persistenceError(String)
+    
+    var errorDescription: String? {
+        switch self {
+        case .networkError(let message):
+            return "Network Error: \(message)"
+        case .dataError(let message):
+            return "Data Error: \(message)"
+        case .validationError(let message):
+            return "Validation Error: \(message)"
+        case .persistenceError(let message):
+            return "Persistence Error: \(message)"
+        }
+    }
+}
+
+// MARK: - Data Models
+struct User: Codable, Identifiable {
+    let id: UUID
+    var name: String
+    var email: String
+    var age: Int
+    
+    init(id: UUID = UUID(), name: String, email: String, age: Int) {
+        self.id = id
+        self.name = name
+        self.email = email
+        self.age = age
+    }
+}
+
+// MARK: - Data Store
+actor UserStore {
+    private var users: [User] = []
+    private let saveKey = "savedUsers"
+    
+    init() {
+        loadUsers()
+    }
+    
+    private func loadUsers() {
+        if let data = UserDefaults.standard.data(forKey: saveKey),
+           let decodedUsers = try? JSONDecoder().decode([User].self, from: data) {
+            users = decodedUsers
+        }
+    }
+    
+    private func saveUsers() throws {
+        let data = try JSONEncoder().encode(users)
+        UserDefaults.standard.set(data, forKey: saveKey)
+    }
+    
+    func addUser(_ user: User) throws {
+        // Validate email
+        guard user.email.contains("@") else {
+            throw AppError.validationError("Invalid email format")
+        }
+        
+        // Validate age
+        guard user.age >= 0 && user.age <= 120 else {
+            throw AppError.validationError("Age must be between 0 and 120")
+        }
+        
+        users.append(user)
+        try saveUsers()
+    }
+    
+    func updateUser(_ user: User) throws {
+        guard let index = users.firstIndex(where: { $0.id == user.id }) else {
+            throw AppError.dataError("User not found")
+        }
+        
+        users[index] = user
+        try saveUsers()
+    }
+    
+    func deleteUser(id: UUID) throws {
+        guard users.contains(where: { $0.id == id }) else {
+            throw AppError.dataError("User not found")
+        }
+        
+        users.removeAll { $0.id == id }
+        try saveUsers()
+    }
+    
+    func getAllUsers() -> [User] {
+        return users
+    }
+}
+
+// MARK: - View Model
+@MainActor
+class UserViewModel: ObservableObject {
+    @Published var users: [User] = []
+    @Published var error: AppError?
+    @Published var isLoading = false
+    
+    private let store = UserStore()
+    
+    func loadUsers() {
+        users = store.getAllUsers()
+    }
+    
+    func addUser(name: String, email: String, age: Int) {
+        isLoading = true
+        error = nil
+        
+        Task {
+            do {
+                let user = User(name: name, email: email, age: age)
+                try await store.addUser(user)
+                users = store.getAllUsers()
+            } catch let error as AppError {
+                self.error = error
+            } catch {
+                self.error = .dataError(error.localizedDescription)
+            }
+            isLoading = false
+        }
+    }
+    
+    func updateUser(_ user: User) {
+        isLoading = true
+        error = nil
+        
+        Task {
+            do {
+                try await store.updateUser(user)
+                users = store.getAllUsers()
+            } catch let error as AppError {
+                self.error = error
+            } catch {
+                self.error = .dataError(error.localizedDescription)
+            }
+            isLoading = false
+        }
+    }
+    
+    func deleteUser(id: UUID) {
+        isLoading = true
+        error = nil
+        
+        Task {
+            do {
+                try await store.deleteUser(id: id)
+                users = store.getAllUsers()
+            } catch let error as AppError {
+                self.error = error
+            } catch {
+                self.error = .dataError(error.localizedDescription)
+            }
+            isLoading = false
+        }
+    }
+}
+
+// MARK: - User Form View
+struct UserFormView: View {
+    @ObservedObject var viewModel: UserViewModel
+    @State private var name = ""
+    @State private var email = ""
+    @State private var age = ""
+    @Environment(\.dismiss) private var dismiss
+    
+    var body: some View {
+        NavigationView {
+            Form {
+                Section("User Details") {
+                    TextField("Name", text: $name)
+                    TextField("Email", text: $email)
+                        .keyboardType(.emailAddress)
+                        .autocapitalization(.none)
+                    TextField("Age", text: $age)
+                        .keyboardType(.numberPad)
+                }
+                
+                Section {
+                    Button("Save") {
+                        if let ageInt = Int(age) {
+                            viewModel.addUser(name: name, email: email, age: ageInt)
+                            dismiss()
+                        }
+                    }
+                    .disabled(name.isEmpty || email.isEmpty || age.isEmpty)
+                }
+            }
+            .navigationTitle("Add User")
+            .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button("Cancel") {
+                        dismiss()
+                    }
+                }
+            }
+        }
+    }
+}
+
+// MARK: - User List View
+struct UserListView: View {
+    @StateObject private var viewModel = UserViewModel()
+    @State private var showingAddUser = false
+    
+    var body: some View {
+        NavigationView {
+            Group {
+                if viewModel.isLoading {
+                    ProgressView("Loading...")
+                } else if let error = viewModel.error {
+                    VStack {
+                        Text("Error")
+                            .font(.title)
+                            .foregroundColor(.red)
+                        Text(error.localizedDescription)
+                            .foregroundColor(.secondary)
+                    }
+                } else {
+                    List {
+                        ForEach(viewModel.users) { user in
+                            VStack(alignment: .leading) {
+                                Text(user.name)
+                                    .font(.headline)
+                                Text(user.email)
+                                    .font(.subheadline)
+                                    .foregroundColor(.secondary)
+                                Text("Age: \(user.age)")
+                                    .font(.caption)
+                            }
+                        }
+                        .onDelete { indexSet in
+                            for index in indexSet {
+                                viewModel.deleteUser(id: viewModel.users[index].id)
+                            }
+                        }
+                    }
+                }
+            }
+            .navigationTitle("Users")
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button(action: { showingAddUser = true }) {
+                        Image(systemName: "plus")
+                    }
+                }
+            }
+            .sheet(isPresented: $showingAddUser) {
+                UserFormView(viewModel: viewModel)
+            }
+        }
+        .onAppear {
+            viewModel.loadUsers()
+        }
+    }
+}
+
+// MARK: - Preview
+PlaygroundPage.current.setLiveView(UserListView()) 

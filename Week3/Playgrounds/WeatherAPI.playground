@@ -1,0 +1,250 @@
+import SwiftUI
+import PlaygroundSupport
+import CoreLocation
+
+// MARK: - Weather Models
+struct WeatherResponse: Codable {
+    let weather: [Weather]
+    let main: MainWeather
+    let wind: Wind
+    let name: String
+    let sys: System
+    
+    struct Weather: Codable {
+        let id: Int
+        let main: String
+        let description: String
+        let icon: String
+    }
+    
+    struct MainWeather: Codable {
+        let temp: Double
+        let feels_like: Double
+        let temp_min: Double
+        let temp_max: Double
+        let pressure: Int
+        let humidity: Int
+    }
+    
+    struct Wind: Codable {
+        let speed: Double
+        let deg: Int
+    }
+    
+    struct System: Codable {
+        let country: String
+        let sunrise: Int
+        let sunset: Int
+    }
+}
+
+// MARK: - Weather Service
+class WeatherService {
+    static let shared = WeatherService()
+    private let apiKey = "YOUR_API_KEY" // Replace with your OpenWeatherMap API key
+    private let baseURL = "https://api.openweathermap.org/data/2.5/weather"
+    
+    private init() {}
+    
+    func fetchWeather(for city: String) async throws -> WeatherResponse {
+        var components = URLComponents(string: baseURL)!
+        components.queryItems = [
+            URLQueryItem(name: "q", value: city),
+            URLQueryItem(name: "appid", value: apiKey),
+            URLQueryItem(name: "units", value: "metric")
+        ]
+        
+        guard let url = components.url else {
+            throw URLError(.badURL)
+        }
+        
+        let (data, response) = try await URLSession.shared.data(from: url)
+        
+        guard let httpResponse = response as? HTTPURLResponse,
+              (200...299).contains(httpResponse.statusCode) else {
+            throw URLError(.badServerResponse)
+        }
+        
+        return try JSONDecoder().decode(WeatherResponse.self, from: data)
+    }
+    
+    func fetchWeatherByLocation(latitude: Double, longitude: Double) async throws -> WeatherResponse {
+        var components = URLComponents(string: baseURL)!
+        components.queryItems = [
+            URLQueryItem(name: "lat", value: String(latitude)),
+            URLQueryItem(name: "lon", value: String(longitude)),
+            URLQueryItem(name: "appid", value: apiKey),
+            URLQueryItem(name: "units", value: "metric")
+        ]
+        
+        guard let url = components.url else {
+            throw URLError(.badURL)
+        }
+        
+        let (data, response) = try await URLSession.shared.data(from: url)
+        
+        guard let httpResponse = response as? HTTPURLResponse,
+              (200...299).contains(httpResponse.statusCode) else {
+            throw URLError(.badServerResponse)
+        }
+        
+        return try JSONDecoder().decode(WeatherResponse.self, from: data)
+    }
+}
+
+// MARK: - Location Manager
+class LocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
+    private let manager = CLLocationManager()
+    @Published var location: CLLocation?
+    @Published var error: Error?
+    
+    override init() {
+        super.init()
+        manager.delegate = self
+        manager.desiredAccuracy = kCLLocationAccuracyBest
+    }
+    
+    func requestLocation() {
+        manager.requestWhenInUseAuthorization()
+        manager.requestLocation()
+    }
+    
+    func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
+        location = locations.first
+    }
+    
+    func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
+        self.error = error
+    }
+}
+
+// MARK: - Weather View
+struct WeatherView: View {
+    @StateObject private var locationManager = LocationManager()
+    @State private var weather: WeatherResponse?
+    @State private var error: Error?
+    @State private var isLoading = false
+    @State private var searchText = ""
+    
+    var body: some View {
+        NavigationView {
+            VStack {
+                if isLoading {
+                    ProgressView("Loading weather data...")
+                } else if let error = error {
+                    VStack {
+                        Text("Error")
+                            .font(.title)
+                            .foregroundColor(.red)
+                        Text(error.localizedDescription)
+                            .foregroundColor(.secondary)
+                    }
+                } else if let weather = weather {
+                    ScrollView {
+                        VStack(spacing: 20) {
+                            // City and Country
+                            Text("\(weather.name), \(weather.sys.country)")
+                                .font(.title)
+                                .bold()
+                            
+                            // Temperature
+                            Text("\(Int(round(weather.main.temp)))°C")
+                                .font(.system(size: 70))
+                                .bold()
+                            
+                            // Weather Description
+                            Text(weather.weather.first?.description.capitalized ?? "")
+                                .font(.title2)
+                            
+                            // Weather Details
+                            HStack(spacing: 40) {
+                                WeatherDetailView(title: "Feels Like", value: "\(Int(round(weather.main.feels_like)))°C")
+                                WeatherDetailView(title: "Humidity", value: "\(weather.main.humidity)%")
+                            }
+                            
+                            HStack(spacing: 40) {
+                                WeatherDetailView(title: "Wind", value: "\(Int(round(weather.wind.speed))) m/s")
+                                WeatherDetailView(title: "Pressure", value: "\(weather.main.pressure) hPa")
+                            }
+                        }
+                        .padding()
+                    }
+                } else {
+                    Text("Enter a city name or use your location")
+                        .foregroundColor(.secondary)
+                }
+            }
+            .navigationTitle("Weather")
+            .searchable(text: $searchText, prompt: "Search city")
+            .onSubmit(of: .search) {
+                fetchWeather(for: searchText)
+            }
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button(action: {
+                        locationManager.requestLocation()
+                    }) {
+                        Image(systemName: "location")
+                    }
+                }
+            }
+        }
+        .onChange(of: locationManager.location) { newLocation in
+            if let location = newLocation {
+                fetchWeatherByLocation(latitude: location.coordinate.latitude,
+                                    longitude: location.coordinate.longitude)
+            }
+        }
+    }
+    
+    private func fetchWeather(for city: String) {
+        isLoading = true
+        error = nil
+        
+        Task {
+            do {
+                weather = try await WeatherService.shared.fetchWeather(for: city)
+            } catch {
+                self.error = error
+            }
+            isLoading = false
+        }
+    }
+    
+    private func fetchWeatherByLocation(latitude: Double, longitude: Double) {
+        isLoading = true
+        error = nil
+        
+        Task {
+            do {
+                weather = try await WeatherService.shared.fetchWeatherByLocation(
+                    latitude: latitude,
+                    longitude: longitude
+                )
+            } catch {
+                self.error = error
+            }
+            isLoading = false
+        }
+    }
+}
+
+// MARK: - Weather Detail View
+struct WeatherDetailView: View {
+    let title: String
+    let value: String
+    
+    var body: some View {
+        VStack {
+            Text(title)
+                .font(.caption)
+                .foregroundColor(.secondary)
+            Text(value)
+                .font(.title3)
+                .bold()
+        }
+    }
+}
+
+// MARK: - Preview
+PlaygroundPage.current.setLiveView(WeatherView()) 
